@@ -1,0 +1,107 @@
+# timso
+
+A lacquered, minimal site: one unified live feed of **every timso sale across every
+collection**, plus a glassmorphism collections gallery — and the infrastructure for
+an automated Twitter/X bot. Runs entirely on a single Cloudflare Worker.
+
+```
+public/        static front-end (no build step, no framework)
+  index.html   white-cube gallery layout
+  styles.css   Off-White × Apple-icon × glassmorphism
+  app.js       fetches /api/*, renders the feed + gallery
+src/
+  index.js     Worker: /api routes + cron handler
+  opensea.js   OpenSea API v2 client (sales feed + collection meta)
+  config.js    >>> who timso is + the list of collections <<<  (edit me)
+  tweets.js    >>> tweet copy + voice <<<  (edit me)
+  twitter.js   OAuth1.0a client (inert until creds added)
+  collage.js   24h sold-works collage (SVG always, PNG if resvg installed)
+  cache.js     KV cache with in-memory fallback
+wrangler.jsonc  Worker config + cron triggers
+```
+
+## How the feed works (important)
+
+The feed is built from **sales inside the collections timso created**, not from
+"seller == wallet" (that only catches flips/secondary buys of other people's art).
+His art sells as primary mints where the on-chain "seller" is a contract, so the
+collection is the right unit. Collections were discovered via OpenSea
+`GET /collections?creator_username=...` for the handles `timsouw, invaders_dev,
+Bioms, timso_eth`, and live in `src/config.js`. Add/remove slugs there anytime.
+
+## Local dev
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars      # paste your OpenSea key into .dev.vars
+npm run dev                          # http://localhost:8787
+```
+
+## Deploy to Cloudflare
+
+```bash
+npx wrangler login                   # once
+npx wrangler secret put OPENSEA_API_KEY   # paste the key (kept out of git)
+npm run deploy
+```
+
+Then in the Cloudflare dashboard → Workers → `timso` → **Settings → Domains &
+Routes → Add Custom Domain** to attach your Cloudflare-managed domain.
+
+> Prefer Git auto-deploy? Connect this repo via **Workers & Pages → Create →
+> Workers → Connect to Git**, set the build command to `npm run deploy` (or use
+> Workers Builds), and add `OPENSEA_API_KEY` as a secret in the dashboard.
+
+### Optional but recommended: persistent cache
+
+Without KV the site uses a short in-isolate cache (fine for launch). For durable
+caching + reliable once-a-day tweet dedupe:
+
+```bash
+npx wrangler kv namespace create CACHE
+```
+
+Paste the returned id into the `kv_namespaces` block in `wrangler.jsonc`
+(uncomment it) and redeploy.
+
+## API
+
+| Route | What |
+|---|---|
+| `GET /api/feed` | unified, time-sorted sales across all collections |
+| `GET /api/collections` | collection cards (name, image, supply, chain) |
+| `GET /api/stats` | 24h / 7d counts + 24h volume |
+| `GET /api/twitter/preview` | exactly what the bot would tweet right now |
+
+## The Twitter bot (wire later)
+
+Infrastructure is built and runs on cron; it stays in **dry-run** until you add
+credentials. Strategy (UTC cron in `wrangler.jsonc`):
+
+- **13:00** — good morning #1
+- **16:00** — good morning #2
+- **21:00** — daily 24h sales summary: builds a collage of everything sold in the
+  last 24h and captions it with the counts; if nothing sold, posts an ironic line.
+- every **15 min** — refreshes the cached feed.
+
+Voice lives in `src/tweets.js` (Johnny Knoxville × Andy Warhol — dumb-confident,
+plain, secretly well-read). Tune the pools, then preview at `/api/twitter/preview`.
+
+To go live:
+
+```bash
+npx wrangler secret put TWITTER_API_KEY
+npx wrangler secret put TWITTER_API_SECRET
+npx wrangler secret put TWITTER_ACCESS_TOKEN
+npx wrangler secret put TWITTER_ACCESS_SECRET
+npm i @resvg/resvg-wasm          # enables the PNG collage (optional)
+```
+
+Then set `TWITTER_DRY_RUN` to `"false"` in `wrangler.jsonc` and redeploy. The app
+needs **Read + Write** OAuth 1.0a user-context keys from the X developer portal.
+
+## Security note
+
+The OpenSea API key is stored as a Worker **secret** and is never committed.
+Because it was shared in plain text, consider rotating it in the OpenSea
+developer dashboard.

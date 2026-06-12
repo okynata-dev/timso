@@ -1,0 +1,51 @@
+{
+  // Cloudflare Worker — serves the static site, the /api/* endpoints, and the cron-driven Twitter bot.
+  // Docs: https://developers.cloudflare.com/workers/
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "timso",
+  "main": "src/index.js",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static frontend lives in /public. Requests are tried against assets first;
+  // anything under /api/* is forced to the Worker via run_worker_first.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "single-page-application"
+  },
+
+  // Cron schedule (UTC). The Worker inspects event.cron to decide what to do.
+  //   */15 * * * *  -> refresh the cached sales feed
+  //   0 13 * * *    -> good morning #1
+  //   0 16 * * *    -> good morning #2
+  //   0 21 * * *    -> daily 24h sales summary (+ collage)
+  "triggers": {
+    "crons": ["*/15 * * * *", "0 13 * * *", "0 16 * * *", "0 21 * * *"]
+  },
+
+  "observability": { "enabled": true },
+
+  // ── OPTIONAL: persistent cache + Twitter dedupe ─────────────────────────────
+  // The site works WITHOUT this (it falls back to a short in-isolate cache).
+  // To enable, run:  npx wrangler kv namespace create CACHE
+  // then paste the id below and uncomment:
+  //
+  // "kv_namespaces": [
+  //   { "binding": "CACHE", "id": "<paste-kv-namespace-id-here>" }
+  // ],
+
+  // ── SECRETS (never commit these) ────────────────────────────────────────────
+  // Required:
+  //   npx wrangler secret put OPENSEA_API_KEY
+  // Twitter (add later, via the developer portal):
+  //   npx wrangler secret put TWITTER_API_KEY
+  //   npx wrangler secret put TWITTER_API_SECRET
+  //   npx wrangler secret put TWITTER_ACCESS_TOKEN
+  //   npx wrangler secret put TWITTER_ACCESS_SECRET
+  "vars": {
+    "SITE_NAME": "timso",
+    "TWITTER_DRY_RUN": "true"
+  }
+}

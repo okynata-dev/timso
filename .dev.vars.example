@@ -1,0 +1,8 @@
+# Copy this file to `.dev.vars` for local `wrangler dev`. NEVER commit `.dev.vars`.
+OPENSEA_API_KEY="paste-your-opensea-api-key-here"
+
+# Twitter (leave blank until you wire the developer portal; bot stays in dry-run).
+TWITTER_API_KEY=""
+TWITTER_API_SECRET=""
+TWITTER_ACCESS_TOKEN=""
+TWITTER_ACCESS_SECRET=""

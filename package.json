@@ -1,0 +1,16 @@
+{
+  "name": "timso",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live feed of timso NFT sales across all collections + Twitter bot infra",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "cron:test": "wrangler dev --test-scheduled"
+  },
+  "devDependencies": {
+    "wrangler": "^4.100.0"
+  }
+}

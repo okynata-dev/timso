@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>timso — sales</title>
+<meta name="description" content="A live feed of every timso sale, across every collection. Collect or cope." />
+<meta property="og:title" content="timso — sales" />
+<meta property="og:description" content="Live feed of every timso sale, across every collection." />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#efeee9" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%230b0b0c'/%3E%3Ctext x='50' y='71' font-family='Helvetica,Arial' font-size='62' font-weight='800' fill='%23fff' text-anchor='middle'%3Et%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="word" href="/">timso<span class="tm">®</span></a>
+    <div class="bar-right">
+      <nav class="nav">
+        <a href="#feed">FEED</a>
+        <a href="#works">WORKS</a>
+      </nav>
+      <div class="live" id="live" title="data freshness">
+        <span class="dot"></span><span id="liveLabel">CONNECTING</span>
+      </div>
+    </div>
+  </div>
+  <div class="tape" aria-hidden="true"></div>
+</header>
+
+<main>
+  <!-- HERO / THE FEED ----------------------------------------------------- -->
+  <section class="hero">
+    <div class="hero-head">
+      <h1 class="ow">&ldquo;THE&nbsp;FEED&rdquo;</h1>
+      <p class="caption">c/o&nbsp;EVERY&nbsp;COLLECTION &nbsp;—&nbsp; <span id="coCount">…</span> &nbsp;“SALES, AS THEY HAPPEN”</p>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat"><div class="k" id="s24">—</div><div class="l">SOLD / 24H</div></div>
+      <div class="stat"><div class="k" id="svol">—</div><div class="l">VOLUME / 24H</div></div>
+      <div class="stat"><div class="k" id="s7">—</div><div class="l">SOLD / 7D</div></div>
+      <div class="stat"><div class="k" id="scol">—</div><div class="l">COLLECTIONS</div></div>
+    </div>
+
+    <section id="feed" class="feed" aria-live="polite">
+      <div class="skeleton-feed" id="feedSkeleton">
+        <div class="srow"></div><div class="srow"></div><div class="srow"></div>
+        <div class="srow"></div><div class="srow"></div>
+      </div>
+    </section>
+    <button class="more" id="feedMore" hidden>LOAD MORE</button>
+  </section>
+
+  <!-- COLLECTIONS --------------------------------------------------------- -->
+  <section id="works" class="works">
+    <div class="works-head">
+      <div>
+        <h2 class="ow">&ldquo;COLLECTIONS&rdquo;</h2>
+        <p class="caption">c/o&nbsp;timso &nbsp;—&nbsp; “THE BACK CATALOGUE”</p>
+      </div>
+      <label class="sort">
+        <span>SORT</span>
+        <select id="sort">
+          <option value="latest">LATEST SALE</option>
+          <option value="active">MOST SALES (24H)</option>
+          <option value="az">A — Z</option>
+          <option value="supply">SUPPLY ↓</option>
+        </select>
+      </label>
+    </div>
+    <div class="grid" id="grid">
+      <div class="gskel"></div><div class="gskel"></div><div class="gskel"></div><div class="gskel"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="tape" aria-hidden="true"></div>
+  <div class="foot-in">
+    <span>&ldquo;COLLECT&nbsp;OR&nbsp;COPE&rdquo;</span>
+    <span class="muted" id="updated">—</span>
+    <span class="muted">timso&nbsp;®&nbsp;<span id="year"></span> &nbsp;·&nbsp; data: opensea</span>
+  </div>
+</footer>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>
