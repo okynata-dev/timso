@@ -1,7 +1,7 @@
 // ── timso — Cloudflare Worker entrypoint ─────────────────────────────────────
 // Serves /api/* (the rest is static assets from /public) and runs the cron bot.
 
-import { ARTIST, FEED_SIZE, TTL } from "./config.js";
+import { ARTIST, COLLECTIONS, FEED_SIZE, TTL } from "./config.js";
 import { buildFeed, buildCollections, salesWithin, nowSeconds } from "./opensea.js";
 import { cacheGet, cacheSet, flagGet, flagSet } from "./cache.js";
 import {
@@ -52,7 +52,12 @@ async function getCollections(env, { force = false } = {}) {
   }
   const cols = await buildCollections(env);
   const payload = { updated: nowSeconds(), count: cols.length, items: cols };
-  if (cols.length) await cacheSet(env, "collections:v1", payload, TTL.collections);
+  // Cache a complete set for the full TTL; cache a partial (some collections
+  // dropped to rate-limits) only briefly so it fills in on the next request.
+  if (cols.length) {
+    const complete = cols.length >= COLLECTIONS.length;
+    await cacheSet(env, "collections:v1", payload, complete ? TTL.collections : 60);
+  }
   return payload;
 }
 

@@ -13,8 +13,20 @@ function headers(env) {
   return { accept: "application/json", "x-api-key": env.OPENSEA_API_KEY || "" };
 }
 
-async function getJSON(url, env) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Fetch with retry/backoff. OpenSea rate-limits bursts (429); without retries a
+// fan-out across all collections silently drops some — so we back off and retry.
+async function getJSON(url, env, attempt = 0) {
   const r = await fetch(url, { headers: headers(env) });
+  if ((r.status === 429 || r.status >= 500) && attempt < 4) {
+    const retryAfter = Number(r.headers.get("retry-after"));
+    const wait = retryAfter > 0
+      ? retryAfter * 1000
+      : Math.min(2500, 250 * 2 ** attempt) + Math.floor(Math.random() * 150);
+    await sleep(wait);
+    return getJSON(url, env, attempt + 1);
+  }
   if (!r.ok) throw new Error(`opensea ${r.status} ${url}`);
   return r.json();
 }
@@ -87,7 +99,7 @@ async function collectionSales(slug, env) {
 
 // Build the unified, de-duped, time-sorted feed across ALL collections.
 export async function buildFeed(env) {
-  const perColl = await pool(COLLECTIONS, 6, (slug) => collectionSales(slug, env));
+  const perColl = await pool(COLLECTIONS, 4, (slug) => collectionSales(slug, env));
   const seen = new Set();
   const all = [];
   for (const list of perColl) {
@@ -120,7 +132,7 @@ async function collectionMeta(slug, env) {
 }
 
 export async function buildCollections(env) {
-  const metas = await pool(COLLECTIONS, 6, (slug) => collectionMeta(slug, env));
+  const metas = await pool(COLLECTIONS, 4, (slug) => collectionMeta(slug, env));
   return metas.filter((m) => m && !m.__error && m.slug);
 }
 
