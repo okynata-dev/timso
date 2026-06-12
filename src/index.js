@@ -29,7 +29,9 @@ async function getFeed(env, { force = false } = {}) {
   }
   const feed = await buildFeed(env);
   const payload = { updated: nowSeconds(), count: feed.length, items: feed.slice(0, FEED_SIZE) };
-  await cacheSet(env, "feed:v1", payload, TTL.feed);
+  // Never cache an empty result — a transient API failure (or missing key) must
+  // self-heal on the next request instead of sticking around.
+  if (feed.length) await cacheSet(env, "feed:v1", payload, TTL.feed);
   return payload;
 }
 
@@ -40,7 +42,7 @@ async function getCollections(env, { force = false } = {}) {
   }
   const cols = await buildCollections(env);
   const payload = { updated: nowSeconds(), count: cols.length, items: cols };
-  await cacheSet(env, "collections:v1", payload, TTL.collections);
+  if (cols.length) await cacheSet(env, "collections:v1", payload, TTL.collections);
   return payload;
 }
 

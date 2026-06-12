@@ -7,8 +7,6 @@ let COLS = [];          // collection metas (merged with activity)
 let shown = 0;
 const PAGE = 30;
 
-document.getElementById("year").textContent = "’" + String(new Date().getFullYear()).slice(2);
-
 // ── helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(sec) {
   const d = Math.max(0, Math.floor(Date.now() / 1000) - sec);
@@ -154,11 +152,6 @@ function setLive(updated, count) {
   const node = $("#live");
   node.classList.toggle("on", !!fresh);
   $("#liveLabel").textContent = fresh ? "LIVE" : "CACHED";
-  if (updated) {
-    const ago = timeAgo(updated);
-    $("#updated").textContent = `UPDATED ${ago} AGO`;
-  }
-  if (count != null) $("#coCount").textContent = count + " WORKS LIVE";
 }
 
 // ── boot ──────────────────────────────────────────────────────────────────────
