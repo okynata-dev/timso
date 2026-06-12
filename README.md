@@ -45,7 +45,7 @@ npx wrangler secret put OPENSEA_API_KEY   # paste the key (kept out of git)
 npm run deploy
 ```
 
-Then in the Cloudflare dashboard → Workers → `timso` → **Settings → Domains &
+Then in the Cloudflare dashboard → Workers → `timsouw` → **Settings → Domains &
 Routes → Add Custom Domain** to attach your Cloudflare-managed domain.
 
 > Prefer Git auto-deploy? Connect this repo via **Workers & Pages → Create →

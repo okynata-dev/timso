@@ -2,7 +2,7 @@
   // Cloudflare Worker — serves the static site, the /api/* endpoints, and the cron-driven Twitter bot.
   // Docs: https://developers.cloudflare.com/workers/
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "timso",
+  "name": "timsouw",
   "main": "src/index.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
