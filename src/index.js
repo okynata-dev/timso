@@ -28,7 +28,17 @@ async function getFeed(env, { force = false } = {}) {
     if (cached) return cached;
   }
   const feed = await buildFeed(env);
-  const payload = { updated: nowSeconds(), count: feed.length, items: feed.slice(0, FEED_SIZE) };
+  // Stats are computed over the FULL feed before truncating for the client.
+  const last24 = salesWithin(feed, 24);
+  const last7d = salesWithin(feed, 24 * 7);
+  const volume24h = {};
+  for (const s of last24) if (s.symbol) volume24h[s.symbol] = (volume24h[s.symbol] || 0) + s.price;
+  const payload = {
+    updated: nowSeconds(),
+    count: feed.length,
+    items: feed.slice(0, FEED_SIZE),
+    stats: { sales24h: last24.length, sales7d: last7d.length, volume24h, lastSale: feed[0] || null },
+  };
   // Never cache an empty result — a transient API failure (or missing key) must
   // self-heal on the next request instead of sticking around.
   if (feed.length) await cacheSet(env, "feed:v1", payload, TTL.feed);
@@ -47,18 +57,11 @@ async function getCollections(env, { force = false } = {}) {
 }
 
 function statsFrom(feed) {
-  const items = feed.items || [];
-  const last24 = salesWithin(items, 24);
-  const last7d = salesWithin(items, 24 * 7);
-  const totals = {};
-  for (const s of last24) if (s.symbol) totals[s.symbol] = (totals[s.symbol] || 0) + s.price;
   return {
     updated: feed.updated,
-    feedSize: items.length,
-    sales24h: last24.length,
-    sales7d: last7d.length,
-    volume24h: totals,
-    lastSale: items[0] || null,
+    feedSize: (feed.items || []).length,
+    totalCount: feed.count ?? 0,
+    ...(feed.stats || { sales24h: 0, sales7d: 0, volume24h: {}, lastSale: null }),
   };
 }
 

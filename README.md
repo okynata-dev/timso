@@ -100,6 +100,23 @@ npm i @resvg/resvg-wasm          # enables the PNG collage (optional)
 Then set `TWITTER_DRY_RUN` to `"false"` in `wrangler.jsonc` and redeploy. The app
 needs **Read + Write** OAuth 1.0a user-context keys from the X developer portal.
 
+## Brand assets
+
+Favicon suite (`favicon.svg/.ico`, `apple-touch-icon`, PWA icons) and the social
+share image (`og.png` — wordmark + a strip of real sold works) are pre-rendered
+PNGs in `/public`. To regenerate after changing the mark:
+
+```bash
+npm i -D @resvg/resvg-js sharp
+node scripts/gen-assets.mjs
+```
+
+## Performance note
+
+Without KV, each cold request fans out to OpenSea for all collections. Cloudflare
+reuses warm isolates and the cron warms the cache every 15 min, so this is fine
+for normal traffic — but enabling KV (see above) is recommended for a busy site.
+
 ## Security note
 
 The OpenSea API key is stored as a Worker **secret** and is never committed.

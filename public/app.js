@@ -20,6 +20,20 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const pretty = (slug) => slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const chainName = (c) => ({ ethereum: "ETH", base: "BASE", flow: "FLOW", polygon: "POLY", optimism: "OP", abstract: "ABS", shape: "SHAPE", ape_chain: "APE" }[c] || (c || "").toUpperCase());
 
+// Request a right-sized image from OpenSea's CDN (crisp on retina, fast to load).
+function sizedImg(url, w) {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith("seadn.io")) {
+      u.searchParams.set("w", String(w));
+      u.searchParams.set("auto", "format");
+      return u.toString();
+    }
+  } catch {}
+  return url;
+}
+
 function fmtVol(totals) {
   const parts = Object.entries(totals || {}).filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1]).slice(0, 2)
@@ -35,7 +49,7 @@ function rowEl(s, fresh) {
   a.href = s.url || (s.tx ? "#" : "#");
   if (s.url) { a.target = "_blank"; a.rel = "noopener"; }
   const img = s.image
-    ? `<img loading="lazy" src="${esc(s.image)}" alt="" onerror="this.style.display='none'">`
+    ? `<img loading="lazy" decoding="async" src="${esc(sizedImg(s.image, 128))}" alt="" onerror="this.style.display='none'">`
     : "";
   a.innerHTML = `
     <div class="thumb">${img}</div>
@@ -58,6 +72,11 @@ function rowEl(s, fresh) {
 function renderFeed(reset) {
   const feed = $("#feed");
   if (reset) { feed.innerHTML = ""; shown = 0; }
+  if (!FEED.length) {
+    feed.innerHTML = '<div class="state">Awaiting the next sale — stand by.</div>';
+    $("#feedMore").hidden = true;
+    return;
+  }
   const slice = FEED.slice(shown, shown + PAGE);
   for (const s of slice) feed.appendChild(rowEl(s, false));
   shown += slice.length;
@@ -121,7 +140,7 @@ function cardEl(c, act) {
   a.target = "_blank"; a.rel = "noopener";
   const initial = (c.name || c.slug || "?").trim()[0]?.toUpperCase() || "?";
   const art = c.image
-    ? `<img class="art" loading="lazy" src="${esc(c.image)}" alt="${esc(c.name)}" onerror="this.outerHTML='<div class=&quot;art fallback&quot;>${esc(initial)}</div>'">`
+    ? `<img class="art" loading="lazy" decoding="async" src="${esc(sizedImg(c.image, 600))}" alt="${esc(c.name)}" onerror="this.outerHTML='<div class=&quot;art fallback&quot;>${esc(initial)}</div>'">`
     : `<div class="art fallback">${esc(initial)}</div>`;
   const n = act.count || 0;
   const tag = n > 0
@@ -142,6 +161,7 @@ function renderGrid() {
   const mode = $("#sort").value;
   const { arr, act } = sortCols(mode);
   const grid = $("#grid");
+  if (!arr.length) { grid.innerHTML = '<div class="state" style="grid-column:1/-1">Loading collections…</div>'; return; }
   grid.innerHTML = "";
   for (const c of arr) grid.appendChild(cardEl(c, act[c.slug] || {}));
 }
@@ -171,7 +191,8 @@ async function loadAll(first) {
     }
   } catch (e) {
     console.error(e);
-    if (first) $("#feed").innerHTML = `<div class="caption" style="text-align:center;padding:40px 0">FEED OFFLINE — RETRYING…</div>`;
+    const sk = $("#feedSkeleton"); if (sk) sk.remove();
+    if (!FEED.length) $("#feed").innerHTML = '<div class="state">Feed offline — retrying…</div>';
   }
 }
 
