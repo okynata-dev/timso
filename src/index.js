@@ -169,18 +169,39 @@ async function handleApi(url, env) {
   return json({ error: "not found" }, 404);
 }
 
+const SECURITY_HEADERS = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "permissions-policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "content-security-policy":
+    "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; " +
+    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; font-src 'self'; " +
+    "connect-src 'self' https://cloudflareinsights.com; base-uri 'self'; " +
+    "form-action 'self'; frame-ancestors 'none'",
+};
+
+function withSecurity(resp) {
+  const h = new Headers(resp.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) h.set(k, v);
+  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    let resp;
     if (url.pathname.startsWith("/api/")) {
       try {
-        return await handleApi(url, env);
+        resp = await handleApi(url, env);
       } catch (e) {
-        return json({ error: String(e && e.message || e) }, 500);
+        resp = json({ error: String(e && e.message || e) }, 500);
       }
+    } else {
+      resp = await env.ASSETS.fetch(request);
     }
-    // Non-API: serve static assets.
-    return env.ASSETS.fetch(request);
+    return withSecurity(resp);
   },
 
   // ── Cron ───────────────────────────────────────────────────────────────────

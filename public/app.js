@@ -47,7 +47,7 @@ async function getJSON(u) { const r = await fetch(u); if (!r.ok) throw new Error
 // ── feed rendering ───────────────────────────────────────────────────────────
 function rowEl(s, fresh) {
   const a = el("a", "row" + (fresh ? " fresh" : ""));
-  a.href = s.url || (s.tx ? "#" : "#");
+  a.href = s.url || "#";
   if (s.url) { a.target = "_blank"; a.rel = "noopener"; }
   const img = s.image
     ? `<img loading="lazy" decoding="async" src="${esc(sizedImg(s.image, 128))}" alt="" onerror="this.style.display='none'">`
