@@ -117,58 +117,69 @@ export async function buildFeed(env) {
   return all;
 }
 
-// Collection metadata for the gallery cards.
-async function collectionMeta(slug, env) {
-  const j = await getJSON(`${BASE}/collections/${slug}`, env);
+// Full per-collection detail: metadata + period stats + a few work images for the
+// collage banner. Powers both the gallery cards and the detail drawer, and the
+// aggregate stats bar is summed from these (one fan-out, three sources each).
+async function collectionDetail(slug, env) {
+  const meta = await getJSON(`${BASE}/collections/${slug}`, env);
+  const stats = await getJSON(`${BASE}/collections/${slug}/stats`, env).catch(() => ({}));
+  const nfts = await getJSON(`${BASE}/collection/${slug}/nfts?limit=12`, env).catch(() => ({}));
+
+  const iv = {};
+  for (const i of stats.intervals || []) iv[i.interval] = i;
+  const pick = (x) => ({ sales: x?.sales || 0, vol: x?.volume || 0 });
+
+  const samples = [];
+  for (const n of nfts.nfts || []) {
+    const u = n.display_image_url || n.image_url;
+    if (u && !samples.includes(u)) samples.push(u);
+    if (samples.length >= 8) break;
+  }
+
+  let desc = (meta.description || "").trim().replace(/\s+/g, " ");
+  if (desc.length > 240) desc = desc.slice(0, 237).trimEnd() + "…";
+
   return {
     slug,
-    name: j.name || slug,
-    description: j.description || "",
-    image: j.image_url || "",
-    banner: j.banner_image_url || "",
-    supply: j.total_supply ?? null,
-    chain:
-      (Array.isArray(j.contracts) && j.contracts[0]?.chain) || j.chain || "",
-    url: j.opensea_url || `https://opensea.io/collection/${slug}`,
+    name: meta.name || slug,
+    description: desc,
+    image: meta.image_url || "",
+    banner: meta.banner_image_url || "",
+    supply: meta.total_supply ?? null,
+    chain: (Array.isArray(meta.contracts) && meta.contracts[0]?.chain) || meta.chain || "",
+    url: meta.opensea_url || `https://opensea.io/collection/${slug}`,
+    dropDate: meta.created_date || "",
+    floor: stats.total?.floor_price ?? null,
+    floorSym: stats.total?.floor_price_symbol || "ETH",
+    samples,
+    stats: {
+      day: pick(iv.one_day),
+      week: pick(iv.seven_day),
+      month: pick(iv.thirty_day),
+      all: { sales: stats.total?.sales || 0, vol: stats.total?.volume || 0 },
+    },
   };
 }
 
 export async function buildCollections(env) {
-  const metas = await pool(COLLECTIONS, 2, (slug) => collectionMeta(slug, env), 300);
+  const metas = await pool(COLLECTIONS, 2, (slug) => collectionDetail(slug, env), 300);
   return metas.filter((m) => m && !m.__error && m.slug);
 }
 
-// Aggregate sales + volume across ALL collections, by period.
-// Source: GET /collections/{slug}/stats  ->  total (all-time) + intervals.
-async function collectionStat(slug, env) {
-  const j = await getJSON(`${BASE}/collections/${slug}/stats`, env);
-  const iv = {};
-  for (const i of j.intervals || []) iv[i.interval] = i;
-  const pick = (x) => ({ sales: x?.sales || 0, vol: x?.volume || 0 });
-  return {
-    day: pick(iv.one_day),
-    week: pick(iv.seven_day),
-    month: pick(iv.thirty_day),
-    all: { sales: j.total?.sales || 0, vol: j.total?.volume || 0 },
-  };
-}
-
-export async function buildStats(env) {
-  const per = await pool(COLLECTIONS, 2, (slug) => collectionStat(slug, env), 300);
+// Sum the per-collection period stats into the aggregate for the top bar.
+export function aggregateStats(collections) {
   const agg = {
     day: { sales: 0, vol: 0 }, week: { sales: 0, vol: 0 },
     month: { sales: 0, vol: 0 }, all: { sales: 0, vol: 0 },
   };
-  let ok = 0;
-  for (const r of per) {
-    if (!r || r.__error) continue;
-    ok++;
+  for (const c of collections) {
+    if (!c || !c.stats) continue;
     for (const k of ["day", "week", "month", "all"]) {
-      agg[k].sales += r[k].sales;
-      agg[k].vol += r[k].vol;
+      agg[k].sales += c.stats[k]?.sales || 0;
+      agg[k].vol += c.stats[k]?.vol || 0;
     }
   }
-  return { ...agg, collections: ok };
+  return { ...agg, collections: collections.length };
 }
 
 // Sales within the last `hours` (used by the daily Twitter summary).

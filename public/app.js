@@ -135,30 +135,95 @@ function sortCols() {
   return { arr, act };
 }
 
-function cardEl(c, act) {
+const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+function monthYear(s) {
+  const m = /^(\d{4})-(\d{2})/.exec(s || "");
+  return m ? `${MONTHS[(+m[2]) - 1]} ${m[1]}` : "";
+}
+
+function cardEl(c) {
   const a = el("a", "card");
   a.href = c.url || `https://opensea.io/collection/${c.slug}`;
   a.target = "_blank"; a.rel = "noopener";
+  // Plain click opens the detail drawer; ⌘/ctrl-click still opens OpenSea.
+  a.addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+    e.preventDefault();
+    openDrawer(c);
+  });
   const initial = (c.name || c.slug || "?").trim()[0]?.toUpperCase() || "?";
   const art = c.image
     ? `<img class="art" loading="lazy" decoding="async" src="${esc(sizedImg(c.image, 600))}" alt="${esc(c.name)}" onerror="this.outerHTML='<div class=&quot;art fallback&quot;>${esc(initial)}</div>'">`
     : `<div class="art fallback">${esc(initial)}</div>`;
-  const supply = c.supply != null ? `<span>${c.supply} ITEMS</span>` : "";
+  const date = monthYear(c.dropDate);
   a.innerHTML = `
     ${art}
     <div class="label">
       <div class="name"><span class="q">&ldquo;</span>${esc((c.name || c.slug).toUpperCase())}<span class="q">&rdquo;</span></div>
-      <div class="cmeta"><span>${chainName(c.chain)}</span>${supply}</div>
+      ${date ? `<div class="cdate">${date}</div>` : ""}
     </div>`;
   return a;
 }
 
 function renderGrid() {
-  const { arr, act } = sortCols();
+  const { arr } = sortCols();
   const grid = $("#grid");
   if (!arr.length) { grid.innerHTML = '<div class="state" style="grid-column:1/-1">Loading collections…</div>'; return; }
   grid.innerHTML = "";
-  for (const c of arr) grid.appendChild(cardEl(c, act[c.slug] || {}));
+  for (const c of arr) grid.appendChild(cardEl(c));
+}
+
+// ── collection detail drawer ──────────────────────────────────────────────────
+function fmtFloor(v) {
+  if (v == null) return "—";
+  if (v === 0) return "0 Ξ";
+  return (v < 1 ? Number(v.toFixed(4)) : Number(v.toFixed(3))) + " Ξ";
+}
+
+function openDrawer(c) {
+  const imgs = (c.samples || []).filter(Boolean);
+  const n = imgs.length >= 8 ? 8 : imgs.length >= 4 ? 4 : 0;
+  let banner;
+  if (n) {
+    banner = `<div class="dcollage">${imgs.slice(0, n)
+      .map((u) => `<div class="dtile" style="background-image:url('${esc(sizedImg(u, 320))}')"></div>`).join("")}</div>`;
+  } else {
+    const cover = c.banner || imgs[0] || c.image;
+    banner = cover ? `<div class="dcover" style="background-image:url('${esc(sizedImg(cover, 900))}')"></div>` : "";
+  }
+  $("#dBanner").innerHTML = `${banner}<div class="dgrad"></div>
+    <div class="dtitle"><span class="q">&ldquo;</span>${esc((c.name || c.slug).toUpperCase())}<span class="q">&rdquo;</span></div>`;
+
+  const bio = $("#dBio");
+  bio.textContent = c.description || "";
+  bio.style.display = c.description ? "" : "none";
+
+  const st = c.stats || {};
+  const cell = (l, v) => `<div class="dstat"><div class="dl">${l}</div><div class="dv">${v}</div></div>`;
+  $("#dStats").innerHTML = [
+    cell("ITEMS", fmtNum(c.supply)),
+    cell("FLOOR", fmtFloor(c.floor)),
+    cell("SOLD · ALL", fmtNum(st.all && st.all.sales)),
+    cell("VOLUME · ALL", fmtEth(st.all && st.all.vol)),
+    cell("SOLD · 30D", fmtNum(st.month && st.month.sales)),
+    cell("CHAIN", chainName(c.chain)),
+  ].join("");
+
+  $("#dCta").href = c.url || `https://opensea.io/collection/${c.slug}`;
+  $("#drawer").scrollTop = 0;
+  $("#scrim").hidden = false;
+  document.body.style.overflow = "hidden";
+  requestAnimationFrame(() => { $("#drawer").classList.add("open"); $("#scrim").classList.add("show"); });
+  $("#drawer").setAttribute("aria-hidden", "false");
+  $("#drawerX").focus();
+}
+
+function closeDrawer() {
+  $("#drawer").classList.remove("open");
+  $("#scrim").classList.remove("show");
+  $("#drawer").setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  setTimeout(() => { $("#scrim").hidden = true; }, 320);
 }
 
 // ── liveness ──────────────────────────────────────────────────────────────────
@@ -191,6 +256,11 @@ async function loadAll(first) {
 }
 
 $("#feedMore").addEventListener("click", () => renderFeed(false));
+$("#drawerX").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("#drawer").classList.contains("open")) closeDrawer();
+});
 
 loadAll(true);
 setInterval(() => loadAll(false), 45000);

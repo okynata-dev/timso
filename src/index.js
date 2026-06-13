@@ -2,7 +2,7 @@
 // Serves /api/* (the rest is static assets from /public) and runs the cron bot.
 
 import { ARTIST, COLLECTIONS, FEED_SIZE, TTL } from "./config.js";
-import { buildFeed, buildCollections, buildStats, salesWithin, nowSeconds } from "./opensea.js";
+import { buildFeed, buildCollections, aggregateStats, salesWithin, nowSeconds } from "./opensea.js";
 import { cacheGet, cacheSet, flagGet, flagSet } from "./cache.js";
 import {
   GM_MORNING, GM_SECOND, pick, summaryCaption, daySeed,
@@ -89,30 +89,11 @@ async function getCollections(env, { force = false } = {}) {
   return payload;
 }
 
-const EMPTY_STATS = () => ({
-  updated: nowSeconds(), warming: true, collections: 0,
-  day: { sales: 0, vol: 0 }, week: { sales: 0, vol: 0 },
-  month: { sales: 0, vol: 0 }, all: { sales: 0, vol: 0 },
-});
-
-async function getStats(env, { force = false } = {}) {
-  if (!force) {
-    return (
-      (await cacheGet(env, "stats:v1")) ||
-      (await cacheGet(env, "stats:lastgood")) ||
-      EMPTY_STATS()
-    );
-  }
-  const s = await buildStats(env);
-  const payload = { updated: nowSeconds(), ...s };
-  if (s.collections > 0) {
-    await cacheSet(env, "stats:v1", payload, TTL.collections);
-    if (s.collections >= COLLECTIONS.length) {
-      await cacheSet(env, "stats:lastgood", payload, TTL.lastgood);
-    }
-    return payload;
-  }
-  return (await cacheGet(env, "stats:lastgood")) || payload;
+// Aggregate stats are derived from the (cached) collection details — no separate
+// fan-out. They refresh whenever the collections cache does (hourly cron).
+async function getStats(env) {
+  const cols = (await getCollections(env)).items || [];
+  return { updated: nowSeconds(), ...aggregateStats(cols) };
 }
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -128,7 +109,6 @@ async function handleApi(url, env) {
     const out = {};
     if (what === "feed" || what === "all") out.feed = (await getFeed(env, { force: true })).count;
     if (what === "collections" || what === "all") out.collections = (await getCollections(env, { force: true })).count;
-    if (what === "stats" || what === "all") out.stats = (await getStats(env, { force: true })).collections;
     return json({ ok: true, ...out });
   }
 
@@ -220,10 +200,9 @@ async function runCron(cron, env) {
     await getFeed(env, { force: true });
     return;
   }
-  // Refresh collection metadata + aggregate stats (hourly).
+  // Refresh collection details (hourly — stats bar derives from this).
   if (cron === "0 * * * *") {
     await getCollections(env, { force: true });
-    await getStats(env, { force: true });
     return;
   }
 

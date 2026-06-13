@@ -142,17 +142,51 @@ main,header{position:relative; z-index:1}
 .card .art{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
 .card .art.fallback{display:flex; align-items:center; justify-content:center;
   font-weight:800; font-size:38px; color:var(--ink-2); background:var(--paper-2)}
-.card .label{position:absolute; left:11px; right:11px; bottom:11px;
+.card .label{position:absolute; left:12px; right:12px; bottom:12px;
   background:var(--glass); backdrop-filter:blur(16px) saturate(1.4);
   -webkit-backdrop-filter:blur(16px) saturate(1.4);
-  border:1px solid var(--glass-bd); border-radius:15px; padding:11px 13px;
+  border:1px solid var(--glass-bd); border-radius:15px; padding:13px 14px;
   box-shadow:0 8px 24px -12px rgba(0,0,0,.55)}
-.card .name{font-weight:800; font-size:14px; letter-spacing:-.02em; text-transform:uppercase;
+.card .name{font-weight:800; font-size:15px; letter-spacing:-.02em; text-transform:uppercase;
   line-height:1.05; color:var(--ink); display:flex; gap:4px; align-items:baseline;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .card .name .q{color:var(--ink-2)}
-.card .cmeta{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; color:var(--ink-2);
-  margin-top:7px; display:flex; gap:9px; text-transform:uppercase}
+.card .cdate{font-family:var(--mono); font-size:11px; letter-spacing:.08em; font-weight:500;
+  color:var(--ink); opacity:.82; margin-top:8px}
+
+/* ── collection detail drawer ────────────────────────────────────────────── */
+.scrim{position:fixed; inset:0; z-index:90; background:rgba(0,0,0,.55);
+  backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); opacity:0; transition:opacity .3s}
+.scrim.show{opacity:1}
+.drawer{position:fixed; top:0; right:0; height:100dvh; width:min(480px,94vw); z-index:100;
+  background:var(--paper); border-left:1px solid var(--line);
+  box-shadow:-30px 0 70px -24px rgba(0,0,0,.6); transform:translateX(101%);
+  transition:transform .36s cubic-bezier(.2,.7,.2,1); overflow-y:auto; overscroll-behavior:contain}
+.drawer.open{transform:none}
+.drawer-x{position:absolute; top:15px; right:15px; z-index:3; width:38px; height:38px;
+  border-radius:50%; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.4); color:#fff;
+  backdrop-filter:blur(8px); cursor:pointer; font-size:14px; line-height:1; transition:.15s}
+.drawer-x:hover{background:rgba(0,0,0,.7)}
+.dbanner{position:relative; height:270px; overflow:hidden; background:var(--paper-2)}
+.dcollage{position:absolute; inset:0; display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:1fr}
+.dtile{background-size:cover; background-position:center}
+.dcover{position:absolute; inset:0; background-size:cover; background-position:center}
+.dgrad{position:absolute; inset:0;
+  background:linear-gradient(to top, rgba(0,0,0,.9) 0%, rgba(0,0,0,.15) 52%, rgba(0,0,0,.3) 100%)}
+.dtitle{position:absolute; left:22px; right:64px; bottom:18px; color:#fff; font-weight:800;
+  letter-spacing:-.03em; text-transform:uppercase; font-size:clamp(28px,7vw,40px); line-height:.92;
+  display:flex; gap:5px; align-items:baseline}
+.dtitle .q{opacity:.55}
+.dbody{padding:24px 22px 40px}
+.dbio{font-family:var(--mono); font-size:13px; line-height:1.55; color:var(--ink-2); margin:0 0 22px}
+.dstats{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line-2);
+  border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.dstat{background:var(--paper); padding:16px 16px}
+.dstat .dl{font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; color:var(--ink-2); text-transform:uppercase}
+.dstat .dv{font-size:22px; font-weight:800; letter-spacing:-.03em; margin-top:7px; font-variant-numeric:tabular-nums}
+.dcta{display:block; text-align:center; margin-top:22px; font-family:var(--mono); font-size:11px;
+  letter-spacing:.13em; padding:14px; border:1px solid var(--ink); border-radius:999px; transition:.18s}
+.dcta:hover{background:var(--ink); color:var(--paper)}
 
 /* ── responsive ──────────────────────────────────────────────────────────── */
 @media (max-width:680px){
