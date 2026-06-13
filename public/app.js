@@ -60,7 +60,6 @@ function rowEl(s, fresh) {
       <div class="rmeta">
         <span class="chip">${chainName(s.chain)}</span>
         ${s.buyerShort ? `<span>→ ${esc(s.buyerShort)}</span>` : ""}
-        <span class="ext">VIEW ↗</span>
       </div>
     </div>
     <div class="rright">

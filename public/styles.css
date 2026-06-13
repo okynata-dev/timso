@@ -110,8 +110,6 @@ main,header{position:relative; z-index:1}
 .rright{text-align:right; white-space:nowrap}
 .price{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
 .ago{font-family:var(--mono); font-size:10.5px; color:var(--ink-2); margin-top:4px}
-.ext{opacity:0; transition:opacity .18s; font-family:var(--mono); font-size:10px; color:var(--accent)}
-.row:hover .ext{opacity:1}
 
 .more{display:block; margin:30px auto 0; font-family:var(--mono); font-size:11px;
   letter-spacing:.13em; padding:12px 24px; border:1px solid var(--ink); border-radius:999px;
