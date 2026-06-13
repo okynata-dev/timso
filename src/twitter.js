@@ -113,19 +113,27 @@ export async function postTweet(env, text, mediaIds = []) {
   return { dryRun: false, result: await r.json() };
 }
 
-// Convenience: post text with an optional PNG collage (Uint8Array | null).
-export async function postWithImage(env, text, pngBytes) {
+async function fetchImageBytes(url) {
+  const r = await fetch(url, { cf: { cacheTtl: 3600 } });
+  if (!r.ok) throw new Error(`image ${r.status}`);
+  const buf = new Uint8Array(await r.arrayBuffer());
+  if (!buf.length || buf.length > 4_800_000) throw new Error("image size"); // Twitter ~5MB
+  return buf;
+}
+
+// Post text with up to 4 work images attached (Twitter renders them as a grid).
+// Each upload failure is tolerated — we never lose the tweet over a bad image.
+export async function postWithMediaUrls(env, text, urls = []) {
   if (!isLive(env)) {
-    return { dryRun: true, preview: { text, media: pngBytes ? 1 : 0 } };
+    return { dryRun: true, preview: { text, media: Math.min(urls.length, 4) } };
   }
-  let mediaIds = [];
-  if (pngBytes && pngBytes.length) {
+  const mediaIds = [];
+  for (const url of urls.slice(0, 4)) {
     try {
-      const id = await uploadMedia(env, pngBytes);
-      mediaIds = [id];
+      const bytes = await fetchImageBytes(url);
+      mediaIds.push(await uploadMedia(env, bytes));
     } catch (e) {
-      // If media fails, still post the text — never lose the tweet.
-      console.error("media upload failed, posting text-only:", e.message);
+      console.error("media skip:", url, e.message);
     }
   }
   return postTweet(env, text, mediaIds);

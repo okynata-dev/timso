@@ -7,8 +7,8 @@ import { cacheGet, cacheSet, flagGet, flagSet } from "./cache.js";
 import {
   GM_MORNING, GM_SECOND, pick, summaryCaption, daySeed,
 } from "./tweets.js";
-import { postTweet, postWithImage, isLive, hasCreds } from "./twitter.js";
-import { buildCollage } from "./collage.js";
+import { postTweet, postWithMediaUrls, isLive, hasCreds } from "./twitter.js";
+import { selectWorkImages } from "./collage.js";
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -137,13 +137,17 @@ async function handleApi(url, env) {
     const feed = await getFeed(env);
     const seed = daySeed();
     const sales24 = salesWithin(feed.items, 24);
+    const summary = summaryCaption(sales24, seed);
+    const images = sales24.length ? selectWorkImages(sales24, 4) : [];
     return json({
       live: isLive(env),
       configured: hasCreds(env),
       goodMorning1: pick(GM_MORNING, seed),
       goodMorning2: pick(GM_SECOND, seed),
-      dailySummary: summaryCaption(sales24, seed),
-      summaryWillAttachCollage: sales24.filter((s) => s.image).length,
+      dailySummary: summary,
+      dailySummaryChars: summary.length,
+      imagesAttached: images.length,
+      imageUrls: images,
     });
   }
   return json({ error: "not found" }, 404);
@@ -214,21 +218,14 @@ async function runCron(cron, env) {
   if (cron === "0 16 * * *") {
     return doOncePerDay(env, `gm2:${seed}`, () => postTweet(env, pick(GM_SECOND, seed)));
   }
-  // Daily 24h summary + collage
+  // Daily 24h summary + up to 4 sold works as native Twitter images
   if (cron === "0 21 * * *") {
     return doOncePerDay(env, `summary:${seed}`, async () => {
       const feed = await getFeed(env, { force: true });
       const sales24 = salesWithin(feed.items, 24);
       const caption = summaryCaption(sales24, seed);
-      let png = null;
-      if (sales24.length) {
-        const { png: bytes } = await buildCollage(sales24, {
-          max: 16,
-          title: `timso · ${sales24.length} sold / 24h`,
-        });
-        png = bytes;
-      }
-      return postWithImage(env, caption, png);
+      const images = sales24.length ? selectWorkImages(sales24, 4) : [];
+      return postWithMediaUrls(env, caption, images);
     });
   }
 }

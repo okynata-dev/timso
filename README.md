@@ -15,7 +15,7 @@ src/
   config.js    >>> who timso is + the list of collections <<<  (edit me)
   tweets.js    >>> tweet copy + voice <<<  (edit me)
   twitter.js   OAuth1.0a client (inert until creds added)
-  collage.js   24h sold-works collage (SVG always, PNG if resvg installed)
+  collage.js   selects up to 4 sold works to attach as native Twitter images
   cache.js     KV cache with in-memory fallback
 wrangler.jsonc  Worker config + cron triggers
 ```
@@ -80,12 +80,14 @@ credentials. Strategy (UTC cron in `wrangler.jsonc`):
 
 - **13:00** — good morning #1
 - **16:00** — good morning #2
-- **21:00** — daily 24h sales summary: builds a collage of everything sold in the
-  last 24h and captions it with the counts; if nothing sold, posts an ironic line.
-- every **15 min** — refreshes the cached feed.
+- **21:00** — daily 24h sales summary: caption (counts, volume, top sale, link)
+  + up to 4 of the day's sold works attached as native Twitter images (2×2 grid).
+  If nothing sold, posts an ironic line. No server-side image compositing needed.
+- every **5 min** — refreshes the cached feed.
 
 Voice lives in `src/tweets.js` (Johnny Knoxville × Andy Warhol — dumb-confident,
-plain, secretly well-read). Tune the pools, then preview at `/api/twitter/preview`.
+plain, secretly well-read). Tune the pools, then preview the exact output at
+`/api/twitter/preview`.
 
 To go live:
 
@@ -94,7 +96,6 @@ npx wrangler secret put TWITTER_API_KEY
 npx wrangler secret put TWITTER_API_SECRET
 npx wrangler secret put TWITTER_ACCESS_TOKEN
 npx wrangler secret put TWITTER_ACCESS_SECRET
-npm i @resvg/resvg-wasm          # enables the PNG collage (optional)
 ```
 
 Then set `TWITTER_DRY_RUN` to `"false"` in `wrangler.jsonc` and redeploy. The app
