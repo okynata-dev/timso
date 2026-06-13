@@ -2,10 +2,16 @@
   // Cloudflare Worker — serves the static site, the /api/* endpoints, and the cron-driven Twitter bot.
   // Docs: https://developers.cloudflare.com/workers/
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "timsouw",
+  "name": "timso",
   "main": "src/index.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
+
+  // Bind the production domain to THIS worker.
+  "routes": [
+    { "pattern": "timsouw.com", "custom_domain": true },
+    { "pattern": "www.timsouw.com", "custom_domain": true }
+  ],
 
   // Static frontend lives in /public. Requests are tried against assets first;
   // anything under /api/* is forced to the Worker via run_worker_first.
@@ -17,24 +23,22 @@
   },
 
   // Cron schedule (UTC). The Worker inspects event.cron to decide what to do.
-  //   */15 * * * *  -> refresh the cached sales feed
+  //   */5 * * * *   -> refresh the cached sales feed (into shared KV)
+  //   0 * * * *     -> refresh collection metadata (hourly)
   //   0 13 * * *    -> good morning #1
   //   0 16 * * *    -> good morning #2
   //   0 21 * * *    -> daily 24h sales summary (+ collage)
   "triggers": {
-    "crons": ["*/15 * * * *", "0 13 * * *", "0 16 * * *", "0 21 * * *"]
+    "crons": ["*/5 * * * *", "0 * * * *", "0 13 * * *", "0 16 * * *", "0 21 * * *"]
   },
 
   "observability": { "enabled": true },
 
-  // ── OPTIONAL: persistent cache + Twitter dedupe ─────────────────────────────
-  // The site works WITHOUT this (it falls back to a short in-isolate cache).
-  // To enable, run:  npx wrangler kv namespace create CACHE
-  // then paste the id below and uncomment:
-  //
-  // "kv_namespaces": [
-  //   { "binding": "CACHE", "id": "<paste-kv-namespace-id-here>" }
-  // ],
+  // Shared cache + Twitter dedupe. The cron warms this so every isolate serves the
+  // same data without each one fanning out to OpenSea (which rate-limits bursts).
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "d3ba3f6fcd2a4a16a2d708a9acdf64a0" }
+  ],
 
   // ── SECRETS (never commit these) ────────────────────────────────────────────
   // Required:

@@ -22,11 +22,21 @@ const json = (data, status = 200, extra = {}) =>
   });
 
 // ── Cached getters ───────────────────────────────────────────────────────────
+const EMPTY_FEED = () => ({
+  updated: nowSeconds(), count: 0, items: [], warming: true,
+  stats: { sales24h: 0, sales7d: 0, volume24h: {}, lastSale: null },
+});
+
 async function getFeed(env, { force = false } = {}) {
+  // User requests only READ the shared cache — they never fan out to OpenSea.
   if (!force) {
-    const cached = await cacheGet(env, "feed:v1");
-    if (cached) return cached;
+    return (
+      (await cacheGet(env, "feed:v1")) ||
+      (await cacheGet(env, "feed:lastgood")) ||
+      EMPTY_FEED()
+    );
   }
+  // Background (cron / refresh) path: fan out politely and warm the cache.
   const feed = await buildFeed(env);
   // Stats are computed over the FULL feed before truncating for the client.
   const last24 = salesWithin(feed, 24);
@@ -39,25 +49,43 @@ async function getFeed(env, { force = false } = {}) {
     items: feed.slice(0, FEED_SIZE),
     stats: { sales24h: last24.length, sales7d: last7d.length, volume24h, lastSale: feed[0] || null },
   };
-  // Never cache an empty result — a transient API failure (or missing key) must
-  // self-heal on the next request instead of sticking around.
-  if (feed.length) await cacheSet(env, "feed:v1", payload, TTL.feed);
+  if (feed.length) {
+    await cacheSet(env, "feed:v1", payload, TTL.feed);
+    await cacheSet(env, "feed:lastgood", payload, TTL.lastgood); // bulletproof fallback
+    return payload;
+  }
+  // Empty fan-out (OpenSea rate-limited this isolate): serve the last good data we
+  // ever captured rather than showing an empty feed.
+  const lastGood = await cacheGet(env, "feed:lastgood");
+  if (lastGood) return lastGood;
   return payload;
 }
 
 async function getCollections(env, { force = false } = {}) {
   if (!force) {
-    const cached = await cacheGet(env, "collections:v1");
-    if (cached) return cached;
+    return (
+      (await cacheGet(env, "collections:v1")) ||
+      (await cacheGet(env, "collections:lastgood")) ||
+      { updated: nowSeconds(), count: 0, items: [], warming: true }
+    );
   }
   const cols = await buildCollections(env);
   const payload = { updated: nowSeconds(), count: cols.length, items: cols };
-  // Cache a complete set for the full TTL; cache a partial (some collections
-  // dropped to rate-limits) only briefly so it fills in on the next request.
   if (cols.length) {
     const complete = cols.length >= COLLECTIONS.length;
-    await cacheSet(env, "collections:v1", payload, complete ? TTL.collections : 60);
+    if (complete) {
+      await cacheSet(env, "collections:v1", payload, TTL.collections);
+      await cacheSet(env, "collections:lastgood", payload, TTL.lastgood);
+      return payload;
+    }
+    // Partial set — prefer a complete last-known-good over showing fewer cards.
+    const lastGood = await cacheGet(env, "collections:lastgood");
+    if (lastGood && lastGood.count > cols.length) return lastGood;
+    await cacheSet(env, "collections:v1", payload, 60);
+    return payload;
   }
+  const lastGood = await cacheGet(env, "collections:lastgood");
+  if (lastGood) return lastGood;
   return payload;
 }
 
@@ -73,6 +101,18 @@ function statsFrom(feed) {
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 async function handleApi(url, env) {
   const path = url.pathname;
+
+  // Manual cache warm (also what the cron does). Token-guarded.
+  if (path === "/api/refresh") {
+    if (!env.REFRESH_TOKEN || url.searchParams.get("token") !== env.REFRESH_TOKEN) {
+      return json({ error: "forbidden" }, 403);
+    }
+    const what = url.searchParams.get("what") || "feed";
+    const out = {};
+    if (what === "feed" || what === "all") out.feed = (await getFeed(env, { force: true })).count;
+    if (what === "collections" || what === "all") out.collections = (await getCollections(env, { force: true })).count;
+    return json({ ok: true, ...out });
+  }
 
   if (path === "/api/feed") {
     const feed = await getFeed(env);
@@ -137,8 +177,14 @@ async function runCron(cron, env) {
   const seed = daySeed();
 
   // Always keep the cache warm.
-  if (cron === "*/15 * * * *") {
-    await Promise.all([getFeed(env, { force: true }), getCollections(env, { force: true })]);
+  // Refresh the shared feed cache (every 5 min).
+  if (cron === "*/5 * * * *") {
+    await getFeed(env, { force: true });
+    return;
+  }
+  // Refresh collection metadata (hourly — it rarely changes).
+  if (cron === "0 * * * *") {
+    await getCollections(env, { force: true });
     return;
   }
 

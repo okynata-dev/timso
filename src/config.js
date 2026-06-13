@@ -64,5 +64,6 @@ export const COLLECTIONS = [
 export const SALES_PER_COLLECTION = 50;
 // Size of the unified feed returned to the client.
 export const FEED_SIZE = 120;
-// Cache TTLs (seconds).
-export const TTL = { feed: 180, collections: 3600 };
+// Cache TTLs (seconds). Kept ABOVE the cron interval so the shared KV cache stays
+// continuously warm — requests read KV instead of fanning out to OpenSea.
+export const TTL = { feed: 900, collections: 7200, lastgood: 172800 };

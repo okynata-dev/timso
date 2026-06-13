@@ -15,15 +15,15 @@ function headers(env) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Fetch with retry/backoff. OpenSea rate-limits bursts (429); without retries a
-// fan-out across all collections silently drops some — so we back off and retry.
+// Fetch with retry/backoff. From Cloudflare's shared egress IPs OpenSea rate-limits
+// aggressively (429), so we retry patiently. This only runs in the background cron.
 async function getJSON(url, env, attempt = 0) {
   const r = await fetch(url, { headers: headers(env) });
-  if ((r.status === 429 || r.status >= 500) && attempt < 4) {
+  if ((r.status === 429 || r.status >= 500) && attempt < 6) {
     const retryAfter = Number(r.headers.get("retry-after"));
     const wait = retryAfter > 0
       ? retryAfter * 1000
-      : Math.min(2500, 250 * 2 ** attempt) + Math.floor(Math.random() * 150);
+      : Math.min(8000, 400 * 2 ** attempt) + Math.floor(Math.random() * 250);
     await sleep(wait);
     return getJSON(url, env, attempt + 1);
   }
@@ -31,8 +31,9 @@ async function getJSON(url, env, attempt = 0) {
   return r.json();
 }
 
-// Run async tasks with a concurrency cap so we don't hammer the API / hit limits.
-async function pool(items, limit, worker) {
+// Run tasks with a small concurrency cap + spacing between calls — polite enough
+// to stay under OpenSea's per-IP rate limit during the background fan-out.
+async function pool(items, limit, worker, delayMs = 0) {
   const out = [];
   let i = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -40,6 +41,7 @@ async function pool(items, limit, worker) {
       const idx = i++;
       try { out[idx] = await worker(items[idx], idx); }
       catch (e) { out[idx] = { __error: String(e && e.message || e) }; }
+      if (delayMs && i < items.length) await sleep(delayMs);
     }
   });
   await Promise.all(runners);
@@ -99,7 +101,7 @@ async function collectionSales(slug, env) {
 
 // Build the unified, de-duped, time-sorted feed across ALL collections.
 export async function buildFeed(env) {
-  const perColl = await pool(COLLECTIONS, 4, (slug) => collectionSales(slug, env));
+  const perColl = await pool(COLLECTIONS, 2, (slug) => collectionSales(slug, env), 300);
   const seen = new Set();
   const all = [];
   for (const list of perColl) {
@@ -132,7 +134,7 @@ async function collectionMeta(slug, env) {
 }
 
 export async function buildCollections(env) {
-  const metas = await pool(COLLECTIONS, 4, (slug) => collectionMeta(slug, env));
+  const metas = await pool(COLLECTIONS, 2, (slug) => collectionMeta(slug, env), 300);
   return metas.filter((m) => m && !m.__error && m.slug);
 }
 
