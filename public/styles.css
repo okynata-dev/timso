@@ -87,14 +87,14 @@ main,header{position:relative; z-index:1}
 
 .feed{max-width:none; margin:0; min-height:120px}
 .row{
-  display:grid; grid-template-columns:64px 1fr auto; gap:16px; align-items:center;
-  padding:14px 14px; border-bottom:1px solid var(--line-2);
-  border-radius:14px; transition:background .18s, transform .18s;
+  display:grid; grid-template-columns:78px 1fr auto; gap:20px; align-items:center;
+  padding:22px 18px; border-bottom:1px solid var(--line-2);
+  border-radius:16px; transition:background .18s, transform .18s;
 }
 .row:hover{background:var(--card); transform:translateX(2px); box-shadow:var(--shadow)}
 .row.fresh{animation:slideIn .55s cubic-bezier(.2,.7,.3,1)}
 @keyframes slideIn{from{opacity:0; transform:translateY(-8px)} to{opacity:1; transform:none}}
-.thumb{width:64px; height:64px; border-radius:16px; overflow:hidden; background:var(--paper-2);
+.thumb{width:78px; height:78px; border-radius:18px; overflow:hidden; background:var(--paper-2);
   box-shadow:inset 0 0 0 1px var(--line); position:relative; flex:none}
 .thumb img{width:100%; height:100%; object-fit:cover; display:block}
 .rmid{min-width:0}
@@ -121,7 +121,7 @@ main,header{position:relative; z-index:1}
 /* states */
 .state{font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase;
   color:var(--ink-2); text-align:center; padding:54px 20px}
-.skeleton-feed .srow{height:64px; border-radius:14px; margin-bottom:14px}
+.skeleton-feed .srow{height:80px; border-radius:16px; margin-bottom:14px}
 .skeleton-feed .srow,.gskel{position:relative; overflow:hidden; background:var(--paper-2)}
 .gskel{aspect-ratio:1; border-radius:var(--radius)}
 .skeleton-feed .srow::after,.gskel::after{content:""; position:absolute; inset:0;
@@ -168,8 +168,8 @@ main,header{position:relative; z-index:1}
 /* ── responsive ──────────────────────────────────────────────────────────── */
 @media (max-width:680px){
   .stats{grid-template-columns:repeat(2,1fr)}
-  .row{grid-template-columns:52px 1fr auto; gap:12px; padding:13px 8px}
-  .thumb{width:52px; height:52px; border-radius:14px}
+  .row{grid-template-columns:60px 1fr auto; gap:14px; padding:18px 8px}
+  .thumb{width:60px; height:60px; border-radius:15px}
   .nav{display:none}
   .hero{padding-top:34px}
   .works{padding-top:56px}
