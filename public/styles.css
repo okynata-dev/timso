@@ -80,10 +80,11 @@ main,header{position:relative; z-index:1}
 .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
   margin:40px 0 34px; background:var(--line-2); border:1px solid var(--line);
   border-radius:16px; overflow:hidden}
-.stat{background:var(--paper); padding:18px 20px; display:flex; flex-direction:column; gap:8px}
-.stat .l{font-family:var(--mono); font-size:10px; letter-spacing:.13em; color:var(--ink-2)}
-.stat .k{font-size:30px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1}
-.stat .v{font-family:var(--mono); font-size:11px; letter-spacing:.03em; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.stat{background:var(--paper); padding:24px 22px 26px; display:flex; flex-direction:column; gap:13px}
+.stat .l{font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--ink-2)}
+.stat .k{font-size:clamp(32px,5vw,50px); font-weight:800; letter-spacing:-.045em; font-variant-numeric:tabular-nums; line-height:.9}
+.stat .v{font-size:16px; font-weight:700; letter-spacing:-.01em; color:var(--ink); opacity:.85;
+  font-variant-numeric:tabular-nums; font-family:var(--mono)}
 
 .feed{max-width:none; margin:0; min-height:120px}
 .row{
