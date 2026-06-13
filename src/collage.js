@@ -29,52 +29,41 @@ export function orderForCollage(sales, max = MAX_TILES) {
   return out;
 }
 
-// ── layout: hero + adaptive grid that always fills the square ────────────────
-function gridFill(x0, y0, W, H, count, out) {
-  const aspect = W / H;
-  let cols = Math.max(1, Math.min(count, Math.round(Math.sqrt(count * aspect))));
-  const rows = Math.ceil(count / cols);
-  const tw = W / cols, th = H / rows;
-  const lastCount = count - cols * (rows - 1);
-  for (let i = 0; i < count; i++) {
-    const r = Math.floor(i / cols), c = i % cols;
-    const stretch = r === rows - 1 && lastCount < cols;
-    const cw = stretch ? W / lastCount : tw;
-    const cx = stretch ? x0 + c * cw : x0 + c * tw;
-    out.push({ x: cx, y: y0 + r * th, w: cw, h: th });
-  }
-}
-
+// ── layout: SQUARE tiles only (works are square — never distort them). The
+// priciest piece is a big square top-right; the rest are unit squares filling
+// the nearest cells around it. Empty cells are fine (they read as negative space).
 function layout(n, S) {
-  const tiles = [];
-  if (n <= 1) return { hero: { x: 0, y: 0, w: S, h: S }, tiles };
-  if (n <= 3) {
-    const hw = Math.round(S * 0.6);
-    gridFill(0, 0, S - hw, S, n - 1, tiles);
-    return { hero: { x: S - hw, y: 0, w: hw, h: S }, tiles };
+  if (n <= 1) return { hero: { x: 0, y: 0, w: S }, tiles: [] };
+  let g = 3, k = 2;
+  for (g = 3; g <= 14; g++) {
+    k = Math.max(2, Math.round(0.45 * g));
+    if (k >= g) k = g - 1;
+    if (g * g - k * k + 1 >= n) break;
   }
-  const R = n - 1;
-  const f = R <= 7 ? 0.62 : R <= 15 ? 0.55 : R <= 35 ? 0.48 : 0.42;
-  const h = Math.round(S * f);
-  const leftW = S - h, botW = h, botH = S - h;
-  const leftA = leftW * S, botA = botW * botH;
-  let leftR = Math.round((R * leftA) / (leftA + botA));
-  leftR = Math.max(1, Math.min(R - 1, leftR));
-  gridFill(0, 0, leftW, S, leftR, tiles);
-  if (R - leftR > 0) gridFill(S - h, h, botW, botH, R - leftR, tiles);
-  return { hero: { x: S - h, y: 0, w: h, h }, tiles };
+  const u = S / g;
+  const hx0 = g - k; // hero spans columns [hx0, g), rows [0, k) — top-right
+  const hero = { x: hx0 * u, y: 0, w: k * u };
+  const hcx = hx0 + k / 2, hcy = k / 2;
+  const cells = [];
+  for (let r = 0; r < g; r++) for (let c = 0; c < g; c++) {
+    if (c >= hx0 && r < k) continue; // inside the hero block
+    cells.push({ c, r, d: Math.hypot(c + 0.5 - hcx, r + 0.5 - hcy) });
+  }
+  cells.sort((a, b) => a.d - b.d); // fill nearest-to-hero first; empties land far away
+  const tiles = cells.slice(0, n - 1).map(({ c, r }) => ({ x: c * u, y: r * u, w: u }));
+  return { hero, tiles };
 }
 
 function svgFor(images, S) {
   const L = layout(images.length, S);
-  const gap = 7;
+  const gap = 8;
   const cell = (img, t) => {
-    const x = t.x + gap / 2, y = t.y + gap / 2, w = t.w - gap, h = (t.h || t.w) - gap;
-    const rad = Math.min(26, w * 0.06 + 6);
+    const x = t.x + gap / 2, y = t.y + gap / 2, w = t.w - gap;
+    const rad = Math.min(28, w * 0.07 + 5);
     const id = `c${Math.round(x)}_${Math.round(y)}`;
-    return `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rad}"/></clipPath>` +
-      `<image href="${img}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` +
-      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rad}" fill="none" stroke="rgba(255,255,255,.1)"/>`;
+    return `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${rad}"/></clipPath>` +
+      `<image href="${img}" x="${x}" y="${y}" width="${w}" height="${w}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` +
+      `<rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${rad}" fill="none" stroke="rgba(255,255,255,.1)"/>`;
   };
   let body = cell(images[0], L.hero);
   L.tiles.forEach((t, i) => { body += cell(images[i + 1] || images[0], t); });

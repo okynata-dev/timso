@@ -129,7 +129,7 @@ main,header{position:relative; z-index:1}
 @keyframes shimmer{100%{transform:translateX(100%)}}
 
 /* ── collections gallery ─────────────────────────────────────────────────── */
-.works{max-width:1200px; margin:0 auto; padding:72px 24px 80px}
+.works{max-width:1200px; margin:0 auto; padding:72px 24px 80px; scroll-margin-top:-56px}
 .works-head{display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap}
 .works-head h2{font-size:clamp(34px,6vw,62px)}
 
