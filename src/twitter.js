@@ -139,6 +139,20 @@ export async function postWithMediaUrls(env, text, urls = []) {
   return postTweet(env, text, mediaIds);
 }
 
+// Post text with pre-rendered image bytes (e.g. the composited collage PNG).
+export async function postWithMediaBytes(env, text, imagesBytes = []) {
+  if (!isLive(env)) {
+    return { dryRun: true, preview: { text, media: imagesBytes.length } };
+  }
+  const mediaIds = [];
+  for (const bytes of imagesBytes.slice(0, 4)) {
+    if (!bytes || !bytes.length) continue;
+    try { mediaIds.push(await uploadMedia(env, bytes)); }
+    catch (e) { console.error("media upload skip:", e.message); }
+  }
+  return postTweet(env, text, mediaIds);
+}
+
 function base64(bytes) {
   let bin = "";
   const chunk = 0x8000;

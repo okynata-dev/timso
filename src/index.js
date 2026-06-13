@@ -5,10 +5,10 @@ import { ARTIST, COLLECTIONS, FEED_SIZE, TTL } from "./config.js";
 import { buildFeed, buildCollections, aggregateStats, salesWithin, nowSeconds } from "./opensea.js";
 import { cacheGet, cacheSet, flagGet, flagSet } from "./cache.js";
 import {
-  GM_MORNING, GM_SECOND, pick, summaryCaption, daySeed,
+  GM_MORNING, GM_SECOND, pick, summaryCaption, noSalesRecap, daySeed,
 } from "./tweets.js";
-import { postTweet, postWithMediaUrls, isLive, hasCreds } from "./twitter.js";
-import { selectWorkImages } from "./collage.js";
+import { postTweet, postWithMediaUrls, postWithMediaBytes, isLive, hasCreds } from "./twitter.js";
+import { buildCollagePng, orderForCollage } from "./collage.js";
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -96,6 +96,24 @@ async function getStats(env) {
   return { updated: nowSeconds(), ...aggregateStats(cols) };
 }
 
+// ETH/USD for the no-sales recap. Cached 1h; tries a couple sources (Cloudflare's
+// shared egress IPs get rate-limited by CoinGecko, so Coinbase is the primary).
+async function getEthUsd(env) {
+  const cached = await cacheGet(env, "ethusd");
+  if (cached && cached.usd) return cached.usd;
+  const sources = [
+    async () => Number((await (await fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot")).json())?.data?.amount),
+    async () => (await (await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd")).json())?.ethereum?.usd,
+  ];
+  for (const fetchPrice of sources) {
+    try {
+      const usd = await fetchPrice();
+      if (usd > 0) { await cacheSet(env, "ethusd", { usd }, 3600); return usd; }
+    } catch {}
+  }
+  return (cached && cached.usd) || null;
+}
+
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 async function handleApi(url, env) {
   const path = url.pathname;
@@ -110,6 +128,19 @@ async function handleApi(url, env) {
     if (what === "feed" || what === "all") out.feed = (await getFeed(env, { force: true })).count;
     if (what === "collections" || what === "all") out.collections = (await getCollections(env, { force: true })).count;
     return json({ ok: true, ...out });
+  }
+
+  // Render a collage preview PNG (token-guarded) to eyeball layouts. By default
+  // it uses today's 24h sales; pass &n=N to preview a collage of the N most
+  // recent feed items regardless of time.
+  if (path === "/api/twitter/collage") {
+    if (url.searchParams.get("token") !== env.REFRESH_TOKEN) return json({ error: "forbidden" }, 403);
+    const feed = await getFeed(env);
+    const nParam = url.searchParams.get("n");
+    const pool = nParam ? feed.items.slice(0, Number(nParam)) : salesWithin(feed.items, 24);
+    const png = await buildCollagePng(orderForCollage(pool));
+    if (!png) return json({ error: "need at least 2 works with images", got: pool.length }, 422);
+    return new Response(png, { headers: { "content-type": "image/png", "cache-control": "no-store" } });
   }
 
   if (path === "/api/feed") {
@@ -137,17 +168,27 @@ async function handleApi(url, env) {
     const feed = await getFeed(env);
     const seed = daySeed();
     const sales24 = salesWithin(feed.items, 24);
-    const summary = summaryCaption(sales24, seed);
-    const images = sales24.length ? selectWorkImages(sales24, 4) : [];
+    const n = sales24.length;
+    let mode, daily;
+    if (n === 0) {
+      mode = "recap (no sales today)";
+      daily = noSalesRecap(await getStats(env), await getEthUsd(env), seed);
+    } else if (n === 1) {
+      mode = "single work";
+      daily = summaryCaption(sales24, seed);
+    } else {
+      mode = `collage (${Math.min(n, 36)} works, hero = priciest)`;
+      daily = summaryCaption(sales24, seed);
+    }
     return json({
       live: isLive(env),
       configured: hasCreds(env),
       goodMorning1: pick(GM_MORNING, seed),
       goodMorning2: pick(GM_SECOND, seed),
-      dailySummary: summary,
-      dailySummaryChars: summary.length,
-      imagesAttached: images.length,
-      imageUrls: images,
+      sales24h: n,
+      dailyMode: mode,
+      dailyText: daily,
+      dailyTextChars: daily.length,
     });
   }
   return json({ error: "not found" }, 404);
@@ -218,16 +259,37 @@ async function runCron(cron, env) {
   if (cron === "0 16 * * *") {
     return doOncePerDay(env, `gm2:${seed}`, () => postTweet(env, pick(GM_SECOND, seed)));
   }
-  // Daily 24h summary + up to 4 sold works as native Twitter images
+  // Daily 24h summary
   if (cron === "0 21 * * *") {
-    return doOncePerDay(env, `summary:${seed}`, async () => {
-      const feed = await getFeed(env, { force: true });
-      const sales24 = salesWithin(feed.items, 24);
-      const caption = summaryCaption(sales24, seed);
-      const images = sales24.length ? selectWorkImages(sales24, 4) : [];
-      return postWithMediaUrls(env, caption, images);
-    });
+    return doOncePerDay(env, `summary:${seed}`, () => postDailySummary(env, seed));
   }
+}
+
+function bigImg(url) {
+  try { const u = new URL(url); u.searchParams.set("w", "1200"); u.searchParams.set("auto", "format"); return u.toString(); }
+  catch { return url; }
+}
+
+// The daily summary: 0 sales -> week/month recap text; 1 sale -> that one work;
+// 2+ -> a composited collage (hero = priciest, top-right).
+async function postDailySummary(env, seed) {
+  const feed = await getFeed(env, { force: true });
+  const sales24 = salesWithin(feed.items, 24);
+  const n = sales24.length;
+
+  if (n === 0) {
+    const [stats, eth] = [await getStats(env), await getEthUsd(env)];
+    return postTweet(env, noSalesRecap(stats, eth, seed));
+  }
+  const caption = summaryCaption(sales24, seed);
+  if (n === 1) {
+    return postWithMediaUrls(env, caption, [bigImg(sales24[0].image)]);
+  }
+  const ordered = orderForCollage(sales24);
+  const png = await buildCollagePng(ordered).catch(() => null);
+  if (png) return postWithMediaBytes(env, caption, [png]);
+  // collage failed -> fall back to up to 4 native images
+  return postWithMediaUrls(env, caption, ordered.slice(0, 4).map((s) => bigImg(s.image)));
 }
 
 // Ensure a given job posts at most once per day, even if cron retries (only

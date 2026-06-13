@@ -148,6 +148,36 @@ function trim(v) {
   return Math.round(v).toLocaleString("en-US");
 }
 
+export const RECAP_HEADERS = [
+  "nothing sold today, so here's the bigger picture:",
+  "quiet day. zoom out:",
+  "no sales today. the receipts that matter:",
+  "slow day on the timeline. the longer game:",
+  "0 today, but the tape doesn't lie:",
+];
+
+// No-sales fallback: recap the week (or month). `stats` is the aggregate from
+// aggregateStats() — { week:{sales,vol}, month:{sales,vol}, ... }. ethUsd optional.
+export function noSalesRecap(stats, ethUsd, daySeed = 0) {
+  const w = stats?.week || { sales: 0, vol: 0 };
+  const m = stats?.month || { sales: 0, vol: 0 };
+  const use = w.sales > 0 ? { label: "this week", ...w } : { label: "this month", ...m };
+  if (!use.sales) return pick(NO_SALES, daySeed); // genuinely nothing, even monthly
+
+  const usd = ethUsd ? ` ($${Math.round(use.vol * ethUsd).toLocaleString("en-US")})` : "";
+  const pcs = use.sales === 1 ? "piece" : "pieces";
+  const lines = [
+    pick(RECAP_HEADERS, daySeed),
+    "",
+    `${use.label}: old collectors got ${trim(use.vol)} Ξ${usd}. new collectors got ${use.sales} ${pcs}.`,
+    "",
+    SITE,
+  ];
+  const opt = [...lines];
+  while (lengthFor(opt.join("\n")) > TWEET_MAX && opt.length > 3) opt.splice(opt.length - 2, 1);
+  return opt.join("\n");
+}
+
 // Day seed: integer day number (UTC) — stable within a calendar day.
 export function daySeed(nowSec = Math.floor(Date.now() / 1000)) {
   return Math.floor(nowSec / 86400);

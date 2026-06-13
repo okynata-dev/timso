@@ -15,7 +15,7 @@ src/
   config.js    >>> who timso is + the list of collections <<<  (edit me)
   tweets.js    >>> tweet copy + voice <<<  (edit me)
   twitter.js   OAuth1.0a client (inert until creds added)
-  collage.js   selects up to 4 sold works to attach as native Twitter images
+  collage.js   composites the day's sold works into one image (resvg-wasm)
   cache.js     KV cache with in-memory fallback
 wrangler.jsonc  Worker config + cron triggers
 ```
@@ -80,10 +80,17 @@ credentials. Strategy (UTC cron in `wrangler.jsonc`):
 
 - **13:00** — good morning #1
 - **16:00** — good morning #2
-- **21:00** — daily 24h sales summary: caption (counts, volume, top sale, link)
-  + up to 4 of the day's sold works attached as native Twitter images (2×2 grid).
-  If nothing sold, posts an ironic line. No server-side image compositing needed.
+- **21:00** — daily summary, by sale count:
+  - **0 sales** → recaps the week (else month): `old collectors got X Ξ ($Y).
+    new collectors got N pieces.` + link.
+  - **1 sale** → posts that single work.
+  - **2+** → composites a collage (resvg-wasm): priciest piece big in the
+    top-right, the rest fill an L (left + bottom), scaling up to 36 works.
+  - caption carries counts, volume, top sale, and a timsouw.com link.
 - every **5 min** — refreshes the cached feed.
+
+Preview the exact text at `/api/twitter/preview`; eyeball a collage at
+`/api/twitter/collage?n=8&token=…` (uses today's sales if `n` is omitted).
 
 Voice lives in `src/tweets.js` (Johnny Knoxville × Andy Warhol — dumb-confident,
 plain, secretly well-read). Tune the pools, then preview the exact output at
