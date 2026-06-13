@@ -2,7 +2,7 @@
 // Serves /api/* (the rest is static assets from /public) and runs the cron bot.
 
 import { ARTIST, COLLECTIONS, FEED_SIZE, TTL } from "./config.js";
-import { buildFeed, buildCollections, salesWithin, nowSeconds } from "./opensea.js";
+import { buildFeed, buildCollections, buildStats, salesWithin, nowSeconds } from "./opensea.js";
 import { cacheGet, cacheSet, flagGet, flagSet } from "./cache.js";
 import {
   GM_MORNING, GM_SECOND, pick, summaryCaption, daySeed,
@@ -89,13 +89,30 @@ async function getCollections(env, { force = false } = {}) {
   return payload;
 }
 
-function statsFrom(feed) {
-  return {
-    updated: feed.updated,
-    feedSize: (feed.items || []).length,
-    totalCount: feed.count ?? 0,
-    ...(feed.stats || { sales24h: 0, sales7d: 0, volume24h: {}, lastSale: null }),
-  };
+const EMPTY_STATS = () => ({
+  updated: nowSeconds(), warming: true, collections: 0,
+  day: { sales: 0, vol: 0 }, week: { sales: 0, vol: 0 },
+  month: { sales: 0, vol: 0 }, all: { sales: 0, vol: 0 },
+});
+
+async function getStats(env, { force = false } = {}) {
+  if (!force) {
+    return (
+      (await cacheGet(env, "stats:v1")) ||
+      (await cacheGet(env, "stats:lastgood")) ||
+      EMPTY_STATS()
+    );
+  }
+  const s = await buildStats(env);
+  const payload = { updated: nowSeconds(), ...s };
+  if (s.collections > 0) {
+    await cacheSet(env, "stats:v1", payload, TTL.collections);
+    if (s.collections >= COLLECTIONS.length) {
+      await cacheSet(env, "stats:lastgood", payload, TTL.lastgood);
+    }
+    return payload;
+  }
+  return (await cacheGet(env, "stats:lastgood")) || payload;
 }
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -111,6 +128,7 @@ async function handleApi(url, env) {
     const out = {};
     if (what === "feed" || what === "all") out.feed = (await getFeed(env, { force: true })).count;
     if (what === "collections" || what === "all") out.collections = (await getCollections(env, { force: true })).count;
+    if (what === "stats" || what === "all") out.stats = (await getStats(env, { force: true })).collections;
     return json({ ok: true, ...out });
   }
 
@@ -123,8 +141,7 @@ async function handleApi(url, env) {
     return json(cols);
   }
   if (path === "/api/stats") {
-    const feed = await getFeed(env);
-    return json(statsFrom(feed));
+    return json(await getStats(env));
   }
   if (path === "/api/meta") {
     return json({
@@ -182,9 +199,10 @@ async function runCron(cron, env) {
     await getFeed(env, { force: true });
     return;
   }
-  // Refresh collection metadata (hourly — it rarely changes).
+  // Refresh collection metadata + aggregate stats (hourly).
   if (cron === "0 * * * *") {
     await getCollections(env, { force: true });
+    await getStats(env, { force: true });
     return;
   }
 

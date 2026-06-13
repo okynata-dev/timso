@@ -34,12 +34,11 @@ function sizedImg(url, w) {
   return url;
 }
 
-const fmtNum = (n) => (n || 0).toLocaleString("en-US");
-function fmtEth(v) {
-  if (!v) return "0 Ξ";
-  if (v < 1) return v.toFixed(3) + " Ξ";
-  if (v < 1000) return v.toFixed(2) + " Ξ";
-  return Math.round(v).toLocaleString("en-US") + " Ξ";
+function fmtVol(totals) {
+  const parts = Object.entries(totals || {}).filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]).slice(0, 2)
+    .map(([sym, v]) => `${v < 1 ? v.toFixed(3) : v.toFixed(2)} ${sym}`);
+  return parts.join(" + ") || "0";
 }
 
 async function getJSON(u) { const r = await fetch(u); if (!r.ok) throw new Error(u); return r.json(); }
@@ -109,11 +108,9 @@ function applyFeed(items) {
 
 // ── stats ────────────────────────────────────────────────────────────────────
 function renderStats(st) {
-  const set = (p, o) => {
-    $("#" + p + "_n").textContent = fmtNum(o && o.sales);
-    $("#" + p + "_v").textContent = fmtEth(o && o.vol);
-  };
-  set("d", st.day); set("w", st.week); set("m", st.month); set("a", st.all);
+  $("#s24").textContent = st.sales24h ?? "—";
+  $("#svol").textContent = fmtVol(st.volume24h);
+  $("#s7").textContent = st.sales7d ?? "—";
 }
 
 // ── collections gallery ──────────────────────────────────────────────────────
@@ -126,13 +123,14 @@ function activityIndex() {
   return idx;
 }
 
-// Default order: most recently active collections first.
-function sortCols() {
+function sortCols(mode) {
   const act = activityIndex();
   const get = (c) => act[c.slug] || { count: 0, last: 0 };
-  const arr = [...COLS].sort(
-    (a, b) => get(b).last - get(a).last || get(b).count - get(a).count
-  );
+  const arr = [...COLS];
+  if (mode === "az") arr.sort((a, b) => (a.name || a.slug).localeCompare(b.name || b.slug));
+  else if (mode === "supply") arr.sort((a, b) => (b.supply || 0) - (a.supply || 0));
+  else if (mode === "active") arr.sort((a, b) => get(b).count - get(a).count || get(b).last - get(a).last);
+  else arr.sort((a, b) => get(b).last - get(a).last || get(b).count - get(a).count); // latest
   return { arr, act };
 }
 
@@ -144,9 +142,14 @@ function cardEl(c, act) {
   const art = c.image
     ? `<img class="art" loading="lazy" decoding="async" src="${esc(sizedImg(c.image, 600))}" alt="${esc(c.name)}" onerror="this.outerHTML='<div class=&quot;art fallback&quot;>${esc(initial)}</div>'">`
     : `<div class="art fallback">${esc(initial)}</div>`;
+  const n = act.count || 0;
+  const tag = n > 0
+    ? `<div class="tagstrip${n >= 5 ? " hot" : ""}">${n} SOLD ${n >= 5 ? "🔥" : ""}</div>`
+    : "";
   const supply = c.supply != null ? `<span>${c.supply} ITEMS</span>` : "";
   a.innerHTML = `
     ${art}
+    ${tag}
     <div class="label">
       <div class="name"><span class="q">&ldquo;</span>${esc((c.name || c.slug).toUpperCase())}<span class="q">&rdquo;</span></div>
       <div class="cmeta"><span>${chainName(c.chain)}</span>${supply}</div>
@@ -155,7 +158,8 @@ function cardEl(c, act) {
 }
 
 function renderGrid() {
-  const { arr, act } = sortCols();
+  const mode = $("#sort").value;
+  const { arr, act } = sortCols(mode);
   const grid = $("#grid");
   if (!arr.length) { grid.innerHTML = '<div class="state" style="grid-column:1/-1">Loading collections…</div>'; return; }
   grid.innerHTML = "";
@@ -180,9 +184,10 @@ async function loadAll(first) {
     if (first) {
       const cols = await getJSON("/api/collections");
       COLS = cols.items || [];
+      $("#scol").textContent = COLS.length;
       renderGrid();
     } else {
-      renderGrid(); // activity may have changed order
+      renderGrid(); // activity may have changed sort
     }
   } catch (e) {
     console.error(e);
@@ -191,6 +196,7 @@ async function loadAll(first) {
   }
 }
 
+$("#sort").addEventListener("change", renderGrid);
 $("#feedMore").addEventListener("click", () => renderFeed(false));
 
 loadAll(true);

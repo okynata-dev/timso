@@ -138,6 +138,39 @@ export async function buildCollections(env) {
   return metas.filter((m) => m && !m.__error && m.slug);
 }
 
+// Aggregate sales + volume across ALL collections, by period.
+// Source: GET /collections/{slug}/stats  ->  total (all-time) + intervals.
+async function collectionStat(slug, env) {
+  const j = await getJSON(`${BASE}/collections/${slug}/stats`, env);
+  const iv = {};
+  for (const i of j.intervals || []) iv[i.interval] = i;
+  const pick = (x) => ({ sales: x?.sales || 0, vol: x?.volume || 0 });
+  return {
+    day: pick(iv.one_day),
+    week: pick(iv.seven_day),
+    month: pick(iv.thirty_day),
+    all: { sales: j.total?.sales || 0, vol: j.total?.volume || 0 },
+  };
+}
+
+export async function buildStats(env) {
+  const per = await pool(COLLECTIONS, 2, (slug) => collectionStat(slug, env), 300);
+  const agg = {
+    day: { sales: 0, vol: 0 }, week: { sales: 0, vol: 0 },
+    month: { sales: 0, vol: 0 }, all: { sales: 0, vol: 0 },
+  };
+  let ok = 0;
+  for (const r of per) {
+    if (!r || r.__error) continue;
+    ok++;
+    for (const k of ["day", "week", "month", "all"]) {
+      agg[k].sales += r[k].sales;
+      agg[k].vol += r[k].vol;
+    }
+  }
+  return { ...agg, collections: ok };
+}
+
 // Sales within the last `hours` (used by the daily Twitter summary).
 export function salesWithin(feed, hours = 24, nowSec = nowSeconds()) {
   const cutoff = nowSec - hours * 3600;
