@@ -56,19 +56,21 @@ function layout(n, S) {
 
 function svgFor(images, S) {
   const L = layout(images.length, S);
-  const gap = 8;
+  const gap = 11;
   const cell = (img, t) => {
     const x = t.x + gap / 2, y = t.y + gap / 2, w = t.w - gap;
     const rad = Math.min(28, w * 0.07 + 5);
     const id = `c${Math.round(x)}_${Math.round(y)}`;
     return `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${rad}"/></clipPath>` +
       `<image href="${img}" x="${x}" y="${y}" width="${w}" height="${w}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` +
-      `<rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${rad}" fill="none" stroke="rgba(255,255,255,.1)"/>`;
+      `<rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${rad}" fill="none" stroke="rgba(11,11,12,.13)" stroke-width="1.5"/>`;
   };
   let body = cell(images[0], L.hero);
   L.tiles.forEach((t, i) => { body += cell(images[i + 1] || images[0], t); });
+  // White-cube background — black works pop, white works stay delineated by the
+  // gap + hairline border. Fast to render (no filters).
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">` +
-    `<rect width="${S}" height="${S}" fill="#0b0b0c"/>${body}</svg>`;
+    `<rect width="${S}" height="${S}" fill="#f4f3ee"/>${body}</svg>`;
 }
 
 function sizedPng(url, w) {
@@ -98,9 +100,9 @@ export async function buildCollagePng(sales, canvas = 1000) {
   const items = sales.slice(0, MAX_TILES);
   if (items.length < 2) return null;
   const w = items.length > 16 ? 320 : 460;
-  const uris = (await Promise.all(items.map((s) => fetchDataUri(sizedPng(s.image, w))))).filter(Boolean);
-  if (uris.length < 2) return null;
+  const fg = (await Promise.all(items.map((s) => fetchDataUri(sizedPng(s.image, w))))).filter(Boolean);
+  if (fg.length < 2) return null;
   await ensureWasm();
-  const png = new Resvg(svgFor(uris, canvas), { fitTo: { mode: "width", value: canvas } }).render().asPng();
-  return png;
+  const svg = svgFor(fg, canvas);
+  return new Resvg(svg, { fitTo: { mode: "width", value: canvas } }).render().asPng();
 }
