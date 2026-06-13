@@ -142,14 +142,9 @@ function cardEl(c, act) {
   const art = c.image
     ? `<img class="art" loading="lazy" decoding="async" src="${esc(sizedImg(c.image, 600))}" alt="${esc(c.name)}" onerror="this.outerHTML='<div class=&quot;art fallback&quot;>${esc(initial)}</div>'">`
     : `<div class="art fallback">${esc(initial)}</div>`;
-  const n = act.count || 0;
-  const tag = n > 0
-    ? `<div class="tagstrip${n >= 5 ? " hot" : ""}">${n} SOLD ${n >= 5 ? "🔥" : ""}</div>`
-    : "";
   const supply = c.supply != null ? `<span>${c.supply} ITEMS</span>` : "";
   a.innerHTML = `
     ${art}
-    ${tag}
     <div class="label">
       <div class="name"><span class="q">&ldquo;</span>${esc((c.name || c.slug).toUpperCase())}<span class="q">&rdquo;</span></div>
       <div class="cmeta"><span>${chainName(c.chain)}</span>${supply}</div>
